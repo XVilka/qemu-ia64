@@ -75,7 +75,7 @@
     || defined(TARGET_S390X) \
     || defined(TARGET_OPENRISC) || defined(TARGET_TILEGX) \
     || defined(TARGET_NIOS2) || defined(TARGET_RISCV) \
-    || defined(TARGET_XTENSA)
+    || defined(TARGET_XTENSA) || defined(TARGET_IA64)
 
 #define TARGET_IOC_SIZEBITS	14
 #define TARGET_IOC_DIRBITS	2
@@ -487,7 +487,176 @@ struct target_sigaction;
 int do_sigaction(int sig, const struct target_sigaction *act,
                  struct target_sigaction *oact);
 
+<<<<<<< HEAD
 #include "target_signal.h"
+=======
+#if defined(TARGET_I386) || defined(TARGET_ARM) || defined(TARGET_SPARC) \
+    || defined(TARGET_PPC) || defined(TARGET_MIPS) || defined(TARGET_SH4) \
+    || defined(TARGET_M68K) || defined(TARGET_ALPHA) || defined(TARGET_CRIS) \
+    || defined(TARGET_MICROBLAZE) || defined(TARGET_UNICORE32) \
+    || defined(TARGET_S390X) || defined(TARGET_IA64)
+
+#if defined(TARGET_SPARC)
+#define TARGET_SA_NOCLDSTOP    8u
+#define TARGET_SA_NOCLDWAIT    0x100u
+#define TARGET_SA_SIGINFO      0x200u
+#define TARGET_SA_ONSTACK      1u
+#define TARGET_SA_RESTART      2u
+#define TARGET_SA_NODEFER      0x20u
+#define TARGET_SA_RESETHAND    4u
+#elif defined(TARGET_MIPS)
+#define TARGET_SA_NOCLDSTOP	0x00000001
+#define TARGET_SA_NOCLDWAIT	0x00010000
+#define TARGET_SA_SIGINFO	0x00000008
+#define TARGET_SA_ONSTACK	0x08000000
+#define TARGET_SA_NODEFER	0x40000000
+#define TARGET_SA_RESTART	0x10000000
+#define TARGET_SA_RESETHAND	0x80000000
+#if !defined(TARGET_ABI_MIPSN32) && !defined(TARGET_ABI_MIPSN64)
+#define TARGET_SA_RESTORER	0x04000000	/* Only for O32 */
+#endif
+#elif defined(TARGET_ALPHA)
+#define TARGET_SA_ONSTACK	0x00000001
+#define TARGET_SA_RESTART	0x00000002
+#define TARGET_SA_NOCLDSTOP	0x00000004
+#define TARGET_SA_NODEFER	0x00000008
+#define TARGET_SA_RESETHAND	0x00000010
+#define TARGET_SA_NOCLDWAIT	0x00000020 /* not supported yet */
+#define TARGET_SA_SIGINFO	0x00000040
+#else
+#define TARGET_SA_NOCLDSTOP	0x00000001
+#define TARGET_SA_NOCLDWAIT	0x00000002 /* not supported yet */
+#define TARGET_SA_SIGINFO	0x00000004
+#define TARGET_SA_ONSTACK	0x08000000
+#define TARGET_SA_RESTART	0x10000000
+#define TARGET_SA_NODEFER	0x40000000
+#define TARGET_SA_RESETHAND	0x80000000
+#define TARGET_SA_RESTORER	0x04000000
+#endif
+
+#if defined(TARGET_SPARC)
+
+#define TARGET_SIGHUP		 1
+#define TARGET_SIGINT		 2
+#define TARGET_SIGQUIT		 3
+#define TARGET_SIGILL		 4
+#define TARGET_SIGTRAP		 5
+#define TARGET_SIGABRT		 6
+#define TARGET_SIGIOT		 6
+#define TARGET_SIGSTKFLT	 7 /* actually EMT */
+#define TARGET_SIGFPE		 8
+#define TARGET_SIGKILL		 9
+#define TARGET_SIGBUS		10
+#define TARGET_SIGSEGV		11
+#define TARGET_SIGSYS		12
+#define TARGET_SIGPIPE		13
+#define TARGET_SIGALRM		14
+#define TARGET_SIGTERM		15
+#define TARGET_SIGURG		16
+#define TARGET_SIGSTOP		17
+#define TARGET_SIGTSTP		18
+#define TARGET_SIGCONT		19
+#define TARGET_SIGCHLD		20
+#define TARGET_SIGTTIN		21
+#define TARGET_SIGTTOU		22
+#define TARGET_SIGIO		23
+#define TARGET_SIGXCPU		24
+#define TARGET_SIGXFSZ		25
+#define TARGET_SIGVTALRM	26
+#define TARGET_SIGPROF		27
+#define TARGET_SIGWINCH	        28
+#define TARGET_SIGPWR		29
+#define TARGET_SIGUSR1		30
+#define TARGET_SIGUSR2		31
+#define TARGET_SIGRTMIN         32
+
+#define TARGET_SIG_BLOCK          0x01 /* for blocking signals */
+#define TARGET_SIG_UNBLOCK        0x02 /* for unblocking signals */
+#define TARGET_SIG_SETMASK        0x04 /* for setting the signal mask */
+
+#elif defined(TARGET_MIPS)
+
+#define TARGET_SIGHUP		 1	/* Hangup (POSIX).  */
+#define TARGET_SIGINT		 2	/* Interrupt (ANSI).  */
+#define TARGET_SIGQUIT		 3	/* Quit (POSIX).  */
+#define TARGET_SIGILL		 4	/* Illegal instruction (ANSI).  */
+#define TARGET_SIGTRAP		 5	/* Trace trap (POSIX).  */
+#define TARGET_SIGIOT		 6	/* IOT trap (4.2 BSD).  */
+#define TARGET_SIGABRT		 TARGET_SIGIOT	/* Abort (ANSI).  */
+#define TARGET_SIGEMT		 7
+#define TARGET_SIGSTKFLT	 7 /* XXX: incorrect */
+#define TARGET_SIGFPE		 8	/* Floating-point exception (ANSI).  */
+#define TARGET_SIGKILL		 9	/* Kill, unblockable (POSIX).  */
+#define TARGET_SIGBUS		10	/* BUS error (4.2 BSD).  */
+#define TARGET_SIGSEGV		11	/* Segmentation violation (ANSI).  */
+#define TARGET_SIGSYS		12
+#define TARGET_SIGPIPE		13	/* Broken pipe (POSIX).  */
+#define TARGET_SIGALRM		14	/* Alarm clock (POSIX).  */
+#define TARGET_SIGTERM		15	/* Termination (ANSI).  */
+#define TARGET_SIGUSR1		16	/* User-defined signal 1 (POSIX).  */
+#define TARGET_SIGUSR2		17	/* User-defined signal 2 (POSIX).  */
+#define TARGET_SIGCHLD		18	/* Child status has changed (POSIX).  */
+#define TARGET_SIGCLD		TARGET_SIGCHLD	/* Same as TARGET_SIGCHLD (System V).  */
+#define TARGET_SIGPWR		19	/* Power failure restart (System V).  */
+#define TARGET_SIGWINCH	20	/* Window size change (4.3 BSD, Sun).  */
+#define TARGET_SIGURG		21	/* Urgent condition on socket (4.2 BSD).  */
+#define TARGET_SIGIO		22	/* I/O now possible (4.2 BSD).  */
+#define TARGET_SIGPOLL		TARGET_SIGIO	/* Pollable event occurred (System V).  */
+#define TARGET_SIGSTOP		23	/* Stop, unblockable (POSIX).  */
+#define TARGET_SIGTSTP		24	/* Keyboard stop (POSIX).  */
+#define TARGET_SIGCONT		25	/* Continue (POSIX).  */
+#define TARGET_SIGTTIN		26	/* Background read from tty (POSIX).  */
+#define TARGET_SIGTTOU		27	/* Background write to tty (POSIX).  */
+#define TARGET_SIGVTALRM	28	/* Virtual alarm clock (4.2 BSD).  */
+#define TARGET_SIGPROF		29	/* Profiling alarm clock (4.2 BSD).  */
+#define TARGET_SIGXCPU		30	/* CPU limit exceeded (4.2 BSD).  */
+#define TARGET_SIGXFSZ		31	/* File size limit exceeded (4.2 BSD).  */
+#define TARGET_SIGRTMIN         32
+
+#define TARGET_SIG_BLOCK	1	/* for blocking signals */
+#define TARGET_SIG_UNBLOCK	2	/* for unblocking signals */
+#define TARGET_SIG_SETMASK	3	/* for setting the signal mask */
+
+#else
+
+#define TARGET_SIGHUP		 1
+#define TARGET_SIGINT		 2
+#define TARGET_SIGQUIT		 3
+#define TARGET_SIGILL		 4
+#define TARGET_SIGTRAP		 5
+#define TARGET_SIGABRT		 6
+#define TARGET_SIGIOT		 6
+#define TARGET_SIGBUS		 7
+#define TARGET_SIGFPE		 8
+#define TARGET_SIGKILL		 9
+#define TARGET_SIGUSR1		10
+#define TARGET_SIGSEGV		11
+#define TARGET_SIGUSR2		12
+#define TARGET_SIGPIPE		13
+#define TARGET_SIGALRM		14
+#define TARGET_SIGTERM		15
+#define TARGET_SIGSTKFLT	16
+#define TARGET_SIGCHLD		17
+#define TARGET_SIGCONT		18
+#define TARGET_SIGSTOP		19
+#define TARGET_SIGTSTP		20
+#define TARGET_SIGTTIN		21
+#define TARGET_SIGTTOU		22
+#define TARGET_SIGURG		23
+#define TARGET_SIGXCPU		24
+#define TARGET_SIGXFSZ		25
+#define TARGET_SIGVTALRM	26
+#define TARGET_SIGPROF		27
+#define TARGET_SIGWINCH	        28
+#define TARGET_SIGIO		29
+#define TARGET_SIGPWR		30
+#define TARGET_SIGSYS		31
+#define TARGET_SIGRTMIN         32
+
+#define TARGET_SIG_BLOCK          0    /* for blocking signals */
+#define TARGET_SIG_UNBLOCK        1    /* for unblocking signals */
+#define TARGET_SIG_SETMASK        2    /* for setting the signal mask */
+>>>>>>> 52342e0d6b... More changes to get target-ia64 working (doesnt work yet, errors in elfload)
 
 #ifdef TARGET_SA_RESTORER
 #define TARGET_ARCH_HAS_SA_RESTORER 1
@@ -2025,8 +2194,12 @@ struct QEMU_PACKED target_stat64 {
 	unsigned long long	st_ino;
 };
 
+<<<<<<< HEAD
 #elif defined(TARGET_I386) && !defined(TARGET_ABI32)
 #define TARGET_STAT_HAVE_NSEC
+=======
+#elif defined(TARGET_I386) && !defined(TARGET_ABI32) || defined(TARGET_IA64)
+>>>>>>> 52342e0d6b... More changes to get target-ia64 working (doesnt work yet, errors in elfload)
 struct target_stat {
 	abi_ulong	st_dev;
 	abi_ulong	st_ino;
@@ -2313,8 +2486,13 @@ struct target_statfs64 {
 	uint32_t	f_spare[5];
 };
 #elif (defined(TARGET_PPC64) || defined(TARGET_X86_64) || \
+<<<<<<< HEAD
        defined(TARGET_SPARC64) || defined(TARGET_AARCH64) || \
        defined(TARGET_RISCV)) && !defined(TARGET_ABI32)
+=======
+       defined(TARGET_SPARC64)) && !defined(TARGET_ABI32) || \
+       defined(TARGET_IA64)
+>>>>>>> 52342e0d6b... More changes to get target-ia64 working (doesnt work yet, errors in elfload)
 struct target_statfs {
 	abi_long f_type;
 	abi_long f_bsize;
