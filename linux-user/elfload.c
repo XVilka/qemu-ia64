@@ -1523,7 +1523,7 @@ static void elf_core_copy_regs(target_elf_gregset_t *regs,
 
 static inline void init_thread(struct target_pt_regs *regs, struct image_info *infop)
 {
-    // TODO
+    regs->pc = infop->entry;
 }
 
 #endif /* TARGET_IA64 */

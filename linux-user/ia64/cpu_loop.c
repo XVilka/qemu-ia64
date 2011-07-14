@@ -5,7 +5,7 @@
 
 void target_cpu_copy_regs(CPUArchState *env, struct target_pt_regs *regs)
 {
-        // Nothing special TODO
+        env->ip = regs->pc;
 }
 
 void cpu_loop(CPUIA64State *env)
