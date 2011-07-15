@@ -6,6 +6,7 @@
 void target_cpu_copy_regs(CPUArchState *env, struct target_pt_regs *regs)
 {
         env->ip = regs->pc;
+        env->code_ends_at = regs->code_ends_at;
 }
 
 void cpu_loop(CPUIA64State *env)
