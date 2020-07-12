@@ -21,23 +21,12 @@
 #ifndef CPU_IA64_H
 #define CPU_IA64_H
 
-#define TARGET_LONG_BITS 64
+#include "qemu/bswap.h"
+#include "cpu-qom.h"
+#include "exec/cpu-defs.h"
 
 #define ELF_MACHINE	EM_IA_64
 
-#define CPUState struct CPUIA64State
-
-#include "cpu-defs.h"
-#define TARGET_PAGE_BITS 16
-
-#define TARGET_PHYS_ADDR_SPACE_BITS 64
-#define TARGET_VIRT_ADDR_SPACE_BITS 64
-
-#include "cpu-all.h"
-
-#include "softfloat.h"
-
-#define NB_MMU_MODES 2 // guess
 #define MMU_USER_IDX 0 // guess
 
 typedef struct CPUIA64State {
@@ -45,11 +34,11 @@ typedef struct CPUIA64State {
     uint64_t    pr;         // predicate registers, pr[qp] = 1 & (pr >> qp)
 #define IA64_BIT_IS_SET(p,x) (1 & ((p) >> (x)))
 #define IA64_SET_BIT(p,x)    ((p) = (p) | (1 << (x)))
-    
+
     uint64_t    br[8];      // branch registers br0 - br7
     uint64_t    ar[128];    // application registers ar0 - ar127
 #define ar_pfs  64
-    
+
     uint64_t    ip;         // instruction pointer (PC)
     struct {                // current frame marker (has various fields)
         uint32_t sof;
@@ -68,8 +57,27 @@ typedef struct CPUIA64State {
 #define HF_HALTED_MASK       (1 << CPU_PAL_HALT)
     // TODO: cpuid, pmd, user mask and alat registers
 
-    CPU_COMMON
 } CPUIA64State;
+
+/**
+ * IA64CCPU:
+ * @env: #CPUIA64State
+ *
+ * An IA64 CPU.
+ */
+struct IA64CPU {
+    /*< private >*/
+    CPUState parent_obj;
+    /*< public >*/
+
+    CPUNegativeOffsetState neg;
+    CPUIA64State env;
+};
+
+typedef CPUIA64State CPUArchState;
+typedef IA64CPU ArchCPU;
+
+#include "exec/cpu-all.h"
 
 #if defined(CONFIG_USER_ONLY)
 static inline void cpu_clone_regs(CPUState *env, target_ulong newsp)
@@ -78,15 +86,22 @@ static inline void cpu_clone_regs(CPUState *env, target_ulong newsp)
 }
 #endif
 
-CPUIA64State *cpu_ia64_init(const char *cpu_model);
-int cpu_ia64_exec(CPUIA64State *s);
-void cpu_ia64_close(CPUIA64State *s);
-void cpu_ia64_tcg_init(void);
-void do_interrupt (CPUState *env);
-static inline int cpu_mmu_index (CPUState *env)
+#define CPU_RESOLVING_TYPE TYPE_IA64_CPU
+
+void ia64_cpu_do_interrupt (CPUState *env);
+bool ia64_cpu_exec_interrupt(CPUState *cpu, int int_req);
+void ia64_cpu_dump_state(CPUState *cs, FILE *f, int flags);
+
+CPUState *ia64_cpu_init(const char *cpu_model);
+int ia64_cpu_exec(CPUState *s);
+void ia64_cpu_close(CPUState *s);
+
+static inline int cpu_mmu_index (CPUIA64State *env, bool ifetch)
 {
         return 0;
 }
+
+void ia64_tcg_init(void);
 
 /* you can call this signal handler from your SIGBUS and SIGSEGV
    signal handlers to inform the virtual CPU of exceptions. non zero
@@ -97,33 +112,22 @@ int cpu_ia64_handle_mmu_fault (CPUIA64State *env, target_ulong address, int rw,
                               int mmu_idx, int is_softmuu);
 
 #define cpu_handle_mmu_fault cpu_ia64_handle_mmu_fault
-#define cpu_init cpu_ia64_init
-#define cpu_exec cpu_ia64_exec
+#define cpu_init ia64_cpu_init
+#define cpu_exec ia64_cpu_exec
 #define cpu_gen_code cpu_ia64_gen_code
 #define cpu_signal_handler cpu_ia64_signal_handler
-
-#include "exec-all.h"
 
 enum {
     EXCP_SYSCALL_BREAK, /* syscall via break.m 0x10000  */
     EXCP_MMFAULT
 };
 
-static inline int cpu_has_work(CPUState *env)
-{
-    return env->interrupt_request & CPU_INTERRUPT_HARD; // guess
-}
-
-static inline void cpu_pc_from_tb(CPUState *env, TranslationBlock* tb)
-{
-    env->ip = tb->pc;
-}
-
-static inline void cpu_get_tb_cpu_state(CPUState* env, target_ulong *pc,
-                                        target_ulong *cs_base, int *flags)
+static inline void cpu_get_tb_cpu_state(CPUIA64State* env, target_ulong *pc,
+                                        target_ulong *cs_base, uint32_t *pflags)
 {
     *pc = env->ip;
-    *cs_base = 0; // XXX: makes sense for itanium ?
-    *flags = 0; // XXX
+    *cs_base = 0;
+    *pflags = 0;
 }
+
 #endif

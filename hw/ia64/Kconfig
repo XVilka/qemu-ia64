@@ -1,0 +1,6 @@
+config IPF
+	bool
+	imply PCI_DEVICES
+	imply TEST_DEVICES
+	imply PARALLEL
+

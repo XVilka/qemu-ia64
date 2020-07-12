@@ -26,21 +26,28 @@
  * THE SOFTWARE.
  */
 
-#include "hw.h"
-#include "pc.h"
-/* #include "fdc.h" */
-#include "pci.h"
-#include "block.h"
-#include "sysemu.h"
-#include "audio/audio.h"
-#include "net.h"
-#include "smbus.h"
-#include "boards.h"
-#include "firmware.h"
+#include "qemu/osdep.h"
+#include "qemu/units.h"
+#include "qemu/error-report.h"
+#include "qapi/error.h"
+#include "qemu-common.h"
+#include "cpu.h"
+#include "hw/pci/pci.h"
+#include "hw/pci/pci_bridge.h"
+#include "hw/pci/pci_bus.h"
+#include "hw/pci/pci_host.h"
+#include "hw/qdev-properties.h"
+#include "hw/char/serial.h"
+#include "hw/char/parallel.h"
+#include "migration/vmstate.h"
+#include "hw/input/i8042.h"
+#include "hw/block/fdc.h"
+#include "net/net.h"
+#include "qemu/timer.h"
+#include "sysemu/runstate.h"
+#include "sysemu/sysemu.h"
+#include "hw/boards.h"
 #include "ia64intrin.h"
-#include <unistd.h>
-#include "virtio-blk.h"
-#include "sysemu.h"
 
 #define FW_FILENAME "Flash.fd"
 
@@ -57,65 +64,6 @@ static ISADevice *rtc_state;
 static PCIDevice *i440fx_state;
 
 extern void rtc_set_memory(ISADevice *dev, int addr, int val);
-
-static uint32_t ipf_to_legacy_io(target_phys_addr_t addr)
-{
-    return (uint32_t)(((addr&0x3ffffff) >> 12 << 2)|((addr) & 0x3));
-}
-
-static void ipf_legacy_io_writeb(void *opaque, target_phys_addr_t addr,
-				 uint32_t val) {
-    uint32_t port = ipf_to_legacy_io(addr);
-
-    cpu_outb(port, val);
-}
-
-static void ipf_legacy_io_writew(void *opaque, target_phys_addr_t addr,
-				 uint32_t val) {
-    uint32_t port = ipf_to_legacy_io(addr);
-
-    cpu_outw(port, val);
-}
-
-static void ipf_legacy_io_writel(void *opaque, target_phys_addr_t addr,
-				 uint32_t val) {
-    uint32_t port = ipf_to_legacy_io(addr);
-
-    cpu_outl(port, val);
-}
-
-static uint32_t ipf_legacy_io_readb(void *opaque, target_phys_addr_t addr)
-{
-    uint32_t port = ipf_to_legacy_io(addr);
-
-    return cpu_inb(port);
-}
-
-static uint32_t ipf_legacy_io_readw(void *opaque, target_phys_addr_t addr)
-{
-    uint32_t port = ipf_to_legacy_io(addr);
-
-    return cpu_inw(port);
-}
-
-static uint32_t ipf_legacy_io_readl(void *opaque, target_phys_addr_t addr)
-{
-    uint32_t port = ipf_to_legacy_io(addr);
-
-    return cpu_inl(port);
-}
-
-static CPUReadMemoryFunc *ipf_legacy_io_read[3] = {
-    ipf_legacy_io_readb,
-    ipf_legacy_io_readw,
-    ipf_legacy_io_readl,
-};
-
-static CPUWriteMemoryFunc *ipf_legacy_io_write[3] = {
-    ipf_legacy_io_writeb,
-    ipf_legacy_io_writew,
-    ipf_legacy_io_writel,
-};
 
 static void pic_irq_request(void *opaque, int irq, int level)
 {
@@ -157,7 +105,7 @@ static void cmos_init_hd(int type_ofs, int info_ofs, BlockDriverState *hd)
     ISADevice *s = rtc_state;
     int cylinders, heads, sectors;
 
-    bdrv_get_geometry_hint(hd, &cylinders, &heads, &sectors);
+    bdrv_get_geometry(hd, &cylinders, &heads, &sectors);
     rtc_set_memory(s, type_ofs, 47);
     rtc_set_memory(s, info_ofs, cylinders);
     rtc_set_memory(s, info_ofs + 1, cylinders >> 8);
@@ -292,13 +240,13 @@ static void cmos_init(ram_addr_t ram_size, ram_addr_t above_4g_mem_size,
     for (i = 0; i < 4; i++) {
         if (hd_table[i]) {
             int cylinders, heads, sectors, translation;
-            /* NOTE: bdrv_get_geometry_hint() returns the physical
+            /* NOTE: bdrv_get_geometry() returns the physical
                geometry.  It is always such that: 1 <= sects <= 63, 1
                <= heads <= 16, 1 <= cylinders <= 16383. The BIOS
                geometry can be different if a translation is done. */
-            translation = bdrv_get_translation_hint(hd_table[i]);
+            translation = bdrv_get_translation(hd_table[i]);
             if (translation == BIOS_ATA_TRANSLATION_AUTO) {
-                bdrv_get_geometry_hint(hd_table[i], &cylinders,
+                bdrv_get_geometry(hd_table[i], &cylinders,
                                        &heads, &sectors);
                 if (cylinders <= 1024 && heads <= 16 && sectors <= 63) {
                     /* No translation. */
@@ -332,42 +280,11 @@ static int ne2000_io[NE2000_NB_MAX] = { 0x300, 0x320, 0x340,
                                         0x360, 0x280, 0x380 };
 static int ne2000_irq[NE2000_NB_MAX] = { 9, 10, 11, 3, 4, 5 };
 
-static int serial_io[MAX_SERIAL_PORTS] = { 0x3f8, 0x2f8, 0x3e8, 0x2e8 };
-static int serial_irq[MAX_SERIAL_PORTS] = { 4, 3, 4, 3 };
+static int serial_io[MAX_ISA_SERIAL_PORTS] = { 0x3f8, 0x2f8, 0x3e8, 0x2e8 };
+static int serial_irq[MAX_ISA_SERIAL_PORTS] = { 4, 3, 4, 3 };
 
 static int parallel_io[MAX_PARALLEL_PORTS] = { 0x378, 0x278, 0x3bc };
 static int parallel_irq[MAX_PARALLEL_PORTS] = { 7, 7, 7 };
-
-#ifdef HAS_AUDIO
-static void audio_init (PCIBus *pci_bus, qemu_irq *pic)
-{
-    struct soundhw *c;
-    int audio_enabled = 0;
-
-    for (c = soundhw; !audio_enabled && c->name; ++c) {
-        audio_enabled = c->enabled;
-    }
-
-    if (audio_enabled) {
-        AudioState *s;
-
-        s = AUD_init ();
-        if (s) {
-            for (c = soundhw; c->name; ++c) {
-                if (c->enabled) {
-                    if (c->isa) {
-                        c->init.init_isa (s, pic);
-                    } else {
-                        if (pci_bus) {
-                            c->init.init_pci (pci_bus, s);
-                        }
-                    }
-                }
-            }
-        }
-    }
-}
-#endif
 
 #if 0
 static void pc_init_ne2k_isa(NICInfo *nd, qemu_irq *pic)
@@ -654,31 +571,20 @@ static void ipf_init1(ram_addr_t ram_size,
     }
 }
 
-static void ipf_init_pci(ram_addr_t ram_size,
-                         const char *boot_device, DisplayState *ds,
-                         const char *kernel_filename,
-                         const char *kernel_cmdline,
-                         const char *initrd_filename,
-                         const char *cpu_model)
+static void ipf_init(MachineState *machine)
 {
+    ram_addr_t ram_size = machine->ram_size;
+    const char *kernel_filename = machine->kernel_filename;
+    const char *kernel_cmdline = machine->kernel_cmdline;
+    const char *initrd_filename = machine->initrd_filename;
+    IA64CPU *cpus[4];
+    PCIBus *pci_bus;
+    PCIDevice *pci_dev;
+    ISABus *isa_bus;
+    qemu_irq rtc_irq;
     ipf_init1(ram_size, boot_device, ds, kernel_filename,
-              kernel_cmdline, initrd_filename, 1, cpu_model);
+              kernel_cmdline, initrd_filename, 1, "IA64");
 }
-
-QEMUMachine ipf_machine = {
-    .name = "itanium",
-    .desc = "Itanium Platform",
-    .init = (QEMUMachineInitFunc *)ipf_init_pci,
-    .max_cpus = 255,
-    .is_default = 1,
-};
-
-static void ipf_machine_init(void)
-{
-    qemu_register_machine(&ipf_machine);
-}
-
-machine_init(ipf_machine_init);
 
 #define IOAPIC_NUM_PINS 48
 
@@ -722,3 +628,15 @@ int ipf_map_irq(PCIDevice *pci_dev, int irq_num)
 {
 	return ioapic_map_irq(pci_dev->devfn, irq_num);
 }
+
+static void ipf_machine_init(MachineClass *mc)
+{
+    mc->desc = "Itanium Platform";
+    mc->init = ipf_init_pci;
+    mc->block_default_type = IF_IDE;
+    mc->max_cpus = 8;
+    mc->is_default = true;
+    mc->default_ram_id = "ram";
+}
+
+DEFINE_MACHINE("ipf", ipf_machine_init)

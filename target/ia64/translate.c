@@ -25,9 +25,7 @@
 #include "tcg-op.h"
 #include "qemu-log.h"
 #include "ia64_disas.h"
-#include "helpers.h"
-#define GEN_HELPER 1
-#include "helpers.h"
+#include "helper.h"
 
 /* TCG globals to map to cpu registers and other state */
 static TCGv_ptr reg_env;        // CPUState struct pointer
@@ -63,7 +61,7 @@ static const char* reg_name_b[] = {
     "b0", "b1", "b2", "b3", "b4", "b5", "b6", "b7"
 };
 
-void cpu_ia64_tcg_init(void) {
+void ia64_tcg_init(void) {
     int r;
     
     reg_env = tcg_global_reg_new_ptr(TCG_AREG0, "env");
@@ -179,6 +177,11 @@ static inline void gen_op_add_rri(const uint8_t dest,
     } else {
         tcg_gen_addi_i64(reg_gr[dest], reg_gr[src], (uint64_t) imm);
     }
+}
+
+static inline void cpu_pc_from_tb(CPUState *env, TranslationBlock* tb)
+{
+    env->ip = tb->pc;
 }
 
 void gen_intermediate_code (CPUState *env, struct TranslationBlock *tb)
